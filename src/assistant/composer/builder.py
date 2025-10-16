@@ -21,4 +21,4 @@ TPL_MD = Template("""# Daily Quant Digest — {{ date }}
 """)
 
 def render_digest(date:str, quotes:List[PriceSnapshot], vix:VixClose, cpi:List[CpiRelease], arxiv:List[PaperItem], s2:List[PaperItem])->str:
-    return TPL_MD.render(date=date, quotes=quotes, vix=vix, cpi=cpi, arXiv=arxiv, s2=s2)
+    return TPL_MD.render(date=date, quotes=quotes, vix=vix, cpi=cpi, arxiv=arxiv, s2=s2)

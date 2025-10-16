@@ -7,11 +7,15 @@ from assistant.fetchers.bls_cpi import upcoming_cpi_releases
 from assistant.fetchers.arxiv_papers import latest_arxiv_qfin
 from assistant.fetchers.semanticscholar import search_papers
 from assistant.composer.builder import render_digest
-from assistant.utils.dto import PriceSnapshot
+from assistant.utils.dto import PriceSnapshot, VixClose
 
 def main():
     today = date.today().isoformat()
+    try:
     vix = latest_vix_close()
+except Exception as e:
+    print(f"[warn] VIX fetch failed: {e}")
+    vix = VixClose(date=today, close=0.0)
     quotes: list[PriceSnapshot] = []
     if os.getenv("ALPHAVANTAGE_KEY"):
         for sym in ("SPY","QQQ"):
