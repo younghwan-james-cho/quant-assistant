@@ -22,8 +22,8 @@ jobs:
         run: |
           python -m assistant.composer.run_digest > digest.md
           python - <<PY
-from assistant.senders.smtp_sender import send_email
-import os
-html = open("digest.md","r").read().replace("\n","<br/>")
-send_email(to=os.environ["DIGEST_TO"], subject="Daily Quant Digest", html_or_md=html)
-PY
+          from assistant.senders.smtp_sender import send_email
+          import os
+          html = open("digest.md","r").read().replace("\n","<br/>")
+          send_email(to=os.environ["DIGEST_TO"], subject="Daily Quant Digest", html_or_md=html)
+          PY
