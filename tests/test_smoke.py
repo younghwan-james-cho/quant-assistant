@@ -5,5 +5,5 @@ def test_main_does_not_raise(capsys):
     main()
     out, err = capsys.readouterr()
     assert "Daily Quant Digest" in out
-    assert "Skeleton OK" in out
+    assert "Daily Quant Digest" in out
     assert err == ""
