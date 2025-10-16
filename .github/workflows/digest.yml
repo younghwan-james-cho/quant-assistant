@@ -27,6 +27,11 @@ jobs:
 
       - name: Email digest
         env:
+          SMTP_HOST: smtp.gmail.com
+          SMTP_PORT: '587'
+          SMTP_USE_SSL: 'false'
+          SMTP_STARTTLS: 'true'
+          SMTP_TIMEOUT: '15'
           SMTP_USER:        ${{ secrets.SMTP_USER }}
           SMTP_PASS:        ${{ secrets.SMTP_PASS }}
           DIGEST_TO:        ${{ secrets.DIGEST_TO }}
