@@ -9,7 +9,13 @@ description = "Daily quant digest + QR research scaffolding"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "arxiv>=2.2.0",
+    "beautifulsoup4>=4.14.2",
+    "feedparser>=6.0.12",
+    "jinja2>=3.1.6",
     "pytest>=8.4.2",
+    "python-dateutil>=2.9.0.post0",
+    "requests>=2.32.5",
     "ruff>=0.14.0",
 ]
 
