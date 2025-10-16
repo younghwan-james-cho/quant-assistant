@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:  # allows a manual "Run workflow" button
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv (official script)
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Sync environment from lock (deterministic)
+        run: |
+          uv sync --frozen
+
+      - name: Lint
+        run: |
+          uv run ruff check .
+
+      - name: Tests
+        run: |
+          uv run pytest
