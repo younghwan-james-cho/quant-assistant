@@ -49,7 +49,6 @@ def test_semantic_scholar_builds_items_without_network(monkeypatch):
     assert items[0].year == 2022
 
 def test_alphavantage_requires_key(monkeypatch):
-    import os
     import assistant.fetchers.alphavantage as av
     monkeypatch.delenv("ALPHAVANTAGE_KEY", raising=False)
     try:
