@@ -10,6 +10,7 @@ def _bool(s: str | None, default: bool = False) -> bool:
     return s.strip().lower() in {"1", "true", "yes", "on"}
 
 # Circuit breaker state to track consecutive failures
+# Note: Not thread-safe - suitable for single-threaded applications only
 class _CircuitBreaker:
     def __init__(self, max_failures: int = 3):
         self.max_failures = max_failures
