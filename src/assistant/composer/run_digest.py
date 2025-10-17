@@ -10,6 +10,7 @@ from assistant.fetchers.semanticscholar import search_papers
 from assistant.composer.builder import render_digest
 from assistant.utils.dto import PriceSnapshot, VixClose
 
+
 def main():
     today = date.today().isoformat()
 
@@ -51,6 +52,27 @@ def main():
 
     md = render_digest(today, quotes, vix, cpi, arxiv, s2)
     print(md)
+
+    # Attempt to send digest if DIGEST_TO is configured.
+    to = os.getenv("DIGEST_TO")
+    if to:
+        html = md.replace("\n", "<br/>")
+        try:
+            from assistant.senders.smtp_sender import send_email as smtp_send
+
+            smtp_send(to=to, subject="Daily Quant Digest", html_or_md=html)
+            print("[info] sent digest via SMTP sender")
+        except Exception as e:
+            print(f"[warn] smtp send failed: {e}")
+            # Fallback: Resend
+            try:
+                from assistant.senders.resend_sender import send_email_resend
+
+                send_email_resend(to=to, subject="Daily Quant Digest", html_or_md=html)
+                print("[info] sent digest via Resend sender")
+            except Exception as e2:
+                print(f"[error] resend send failed: {e2}")
+
 
 if __name__ == "__main__":
     main()

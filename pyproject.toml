@@ -24,3 +24,7 @@ packages = ["src/assistant"]
 
 [tool.ruff]
 line-length = 100
+
+[tool.poetry.dependencies]
+resend = "*"
+wrds = "*"
