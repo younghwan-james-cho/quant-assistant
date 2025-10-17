@@ -10,6 +10,7 @@ from assistant.fetchers.semanticscholar import search_papers
 from assistant.composer.builder import render_digest
 from assistant.utils.dto import PriceSnapshot, VixClose
 
+
 def main():
     today = date.today().isoformat()
 
@@ -51,6 +52,7 @@ def main():
 
     md = render_digest(today, quotes, vix, cpi, arxiv, s2)
     print(md)
+
 
 if __name__ == "__main__":
     main()
