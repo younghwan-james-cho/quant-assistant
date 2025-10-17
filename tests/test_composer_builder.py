@@ -1,9 +1,15 @@
 from assistant.composer.builder import render_digest
-from assistant.utils.dto import PriceSnapshot, VixClose, CpiRelease, PaperItem
+from assistant.utils.dto import (
+    CpiRelease,
+    DigestContext,
+    PaperItem,
+    PriceSnapshot,
+    VixClose,
+)
 
 
-def test_render_digest_basic():
-    md = render_digest(
+def test_render_digest_basic() -> None:
+    ctx = DigestContext(
         date="2025-10-16",
         quotes=[PriceSnapshot(symbol="SPY", price=500.0, as_of="2025-10-15")],
         vix=VixClose(date="2025-10-15", close=15.0),
@@ -11,37 +17,30 @@ def test_render_digest_basic():
         arxiv=[PaperItem(title="Test", authors=["A"], year=2025, url="http://x")],
         s2=[PaperItem(title="Meta", authors=["B"], year=2024, url="http://y")],
     )
-    assert "Daily Quant Digest" in md and "SPY" in md and "VIX" in md
+
+    md = render_digest(context=ctx)
+
+    assert "Daily Quant Digest" in md
+    assert "- SPY: $500.00 (as of 2025-10-15)" in md
+    assert "## Volatility Watch" in md
+    assert "## Economic Calendar" in md
+    assert "## Research Highlights" in md
 
 
-def test_render_digest_empty_papers_and_no_quotes():
-    """Render digest with no market quotes and empty paper lists.
+def test_render_digest_empty_papers_and_no_quotes() -> None:
+    """Render digest with empty data and expect graceful placeholder messages."""
 
-    Expect a user-friendly message for no papers and no market quote entries.
-    """
-    md = render_digest(
+    ctx = DigestContext(
         date="2025-10-16",
-        quotes=[],  # no market quotes
+        quotes=[],
         vix=VixClose(date="2025-10-15", close=0.0),
         cpi=[],
-        arxiv=[],  # empty arXiv list
-        s2=[],  # empty Semantic Scholar list
+        arxiv=[],
+        s2=[],
     )
 
-    # Simulate HTML rendering used by the runner (simple newline -> <br/>)
-    html = md.replace("\n", "<br/>")
+    md = render_digest(context=ctx)
 
-    # Expect a "no papers" message to be present in the final output.
-    assert "No new papers found today" in md or "No new papers found today" in html
-
-    # Ensure no market quote list items are present in the Market Summary section.
-    start = md.find("## Market Summary")
-    assert start != -1, "Market Summary header should be present"
-    next_sec = md.find("##", start + 1)
-    market_section = md[start:next_sec] if next_sec != -1 else md[start:]
-    # When quotes list is empty, there should be the "No market quotes" message and no "- " items.
-    assert (
-        "No market quotes available" in market_section
-        or "No market quotes available" in market_section.lower()
-    )
-    assert "- " not in market_section.replace("_No market quotes available for today._", "")
+    assert "_No market quotes available for today._" in md
+    assert "_No upcoming CPI releases reported._" in md
+    assert "_No new papers found today._" in md

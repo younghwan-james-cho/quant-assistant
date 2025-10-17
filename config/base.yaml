@@ -1,0 +1,22 @@
+api_endpoints:
+  news_api: "https://newsapi.org/v2/everything"
+  fred: "https://api.stlouisfed.org/fred/series/observations"
+  arxiv_qfin: "http://export.arxiv.org/api/query?search_query=cat:q-fin.*&start=0&max_results=10"
+
+fetcher_settings:
+  news_api:
+    query: '"market drivers" OR "macroeconomic trends" OR "monetary policy"'
+    language: "en"
+    sort_by: "publishedAt"
+    page_size: 15
+  arxiv:
+    query: "cat:q-fin.*"
+    max_results: 10
+
+analyzer_settings:
+  llm_model: "gpt-oss:120b-cloud"
+
+digest:
+  benchmarks:
+    - "SPY"
+    - "QQQ"

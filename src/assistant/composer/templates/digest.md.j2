@@ -1,0 +1,41 @@
+# Daily Quant Digest — {{ ctx.date }}
+
+## Market Summary
+{% if ctx.quotes %}
+{% for q in ctx.quotes %}
+- {{ q.symbol }}: ${{ "%.2f"|format(q.price) }} (as of {{ q.as_of }})
+{% endfor %}
+{% else %}
+_No market quotes available for today._
+{% endif %}
+
+## Volatility Watch
+- VIX Close: {{ "%.2f"|format(ctx.vix.close) }} (as of {{ ctx.vix.date }})
+
+## Economic Calendar
+{% if ctx.cpi %}
+{% for release in ctx.cpi %}
+- {{ release.date }} at {{ release.time_et }}{% if release.url %} [Details]({{ release.url }}){% endif %}
+{% endfor %}
+{% else %}
+_No upcoming CPI releases reported._
+{% endif %}
+
+## Research Highlights
+{% set paper_count = ctx.arxiv|length + ctx.s2|length %}
+{% if paper_count == 0 %}
+_No new papers found today._
+{% else %}
+{% if ctx.arxiv %}
+### arXiv
+{% for paper in ctx.arxiv %}
+- [{{ paper.title }}]({{ paper.url }}) by {{ paper.authors|join(", ") }} ({{ paper.year or "n/a" }})
+{% endfor %}
+{% endif %}
+{% if ctx.s2 %}
+### Semantic Scholar
+{% for paper in ctx.s2 %}
+- [{{ paper.title }}]({{ paper.url }}) by {{ paper.authors|join(", ") }} ({{ paper.year or "n/a" }})
+{% endfor %}
+{% endif %}
+{% endif %}

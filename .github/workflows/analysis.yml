@@ -1,0 +1,30 @@
+name: Weekly Momentum Analysis
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # Every Sunday at midnight UTC
+  workflow_dispatch:
+
+jobs:
+  run-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v1
+
+      - name: Sync environment
+        run: uv sync --frozen
+
+      - name: Run Momentum Analysis
+        env:
+          WRDS_USERNAME: ${{ secrets.WRDS_USERNAME }}
+        run: uv run python scripts/run_momentum_analysis.py
+
+      - name: Upload results artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: momentum-factor-results
+          path: artifacts/

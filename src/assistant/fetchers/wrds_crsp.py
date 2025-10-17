@@ -1,70 +1,47 @@
-from __future__ import annotations
 import os
+import wrds
 from typing import List, Optional
-
-try:
-    import wrds
-except ImportError:
-    wrds = None  # type: ignore
+import pandas as pd
+from src.assistant.utils.logging import logger
 
 
-def fetch_crsp_monthly_returns(
-    permnos: List[int],
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-) -> List[dict]:
+def fetch_crsp_data(
+    permnos: List[int], start_date: Optional[str] = None, end_date: Optional[str] = None
+) -> pd.DataFrame:
     """
-    Download CRSP monthly returns (ret) for the provided PERMNOs via WRDS.
+    Fetch CRSP monthly stock returns for the given permnos and date range.
 
-    Authentication:
-    - Prefer ~/.pgpass for non-interactive secure auth.
-    - Alternatively set WRDS_USERNAME (required) and optionally WRDS_PASSWORD.
+    Args:
+        permnos (List[int]): List of permnos to fetch data for.
+        start_date (Optional[str]): Start date in YYYY-MM-DD format.
+        end_date (Optional[str]): End date in YYYY-MM-DD format.
+
+    Returns:
+        pd.DataFrame: DataFrame containing the CRSP data.
     """
-    if wrds is None:
-        raise RuntimeError("wrds package not installed")
-
-    username = os.getenv("WRDS_USERNAME")
-    if not username:
-        raise RuntimeError("WRDS_USERNAME environment variable must be set for WRDS access")
-
-    if not permnos:
-        return []
-
-    perms = sorted({int(p) for p in permnos})
-    perm_list = ",".join(str(p) for p in perms)
-
-    where_clauses = [f"permno IN ({perm_list})"]
-    if start_date:
-        where_clauses.append(f"date >= '{start_date}'")
-    if end_date:
-        where_clauses.append(f"date <= '{end_date}'")
-    where_sql = " AND ".join(where_clauses)
-
-    sql = f"SELECT permno, date, ret FROM crsp.msf WHERE {where_sql} ORDER BY permno, date"
-
     conn = None
     try:
-        password = os.getenv("WRDS_PASSWORD")
-        if password:
-            conn = wrds.Connection(wrds_username=username, wrds_password=password)
-        else:
-            conn = wrds.Connection(wrds_username=username)
+        conn = wrds.Connection(wrds_username=os.getenv("WRDS_USERNAME"))
+        sql_query = """
+        SELECT permno, date, ret
+        FROM crsp.msf
+        WHERE permno IN %s
+        """
+        params = (tuple(permnos),)
+        if start_date:
+            sql_query += " AND date >= %s"
+            params += (start_date,)
+        if end_date:
+            sql_query += " AND date <= %s"
+            params += (end_date,)
 
-        df = conn.raw_sql(sql, index_col=None)
+        df = conn.raw_sql(sql_query, params=params)
+        return df
 
-        results: List[dict] = []
-        for _, row in df.iterrows():
-            results.append(
-                {
-                    "permno": int(row["permno"]),
-                    "date": str(row["date"]),
-                    "ret": None if row["ret"] is None else float(row["ret"]),
-                }
-            )
-        return results
+    except Exception as e:
+        logger.error(f"Failed to fetch CRSP data: {e}")
+        return pd.DataFrame()
+
     finally:
-        if conn is not None:
-            try:
-                conn.close()
-            except Exception:
-                pass
+        if conn:
+            conn.close()

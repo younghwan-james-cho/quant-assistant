@@ -3,22 +3,28 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, List
 
+# --- Existing DTOs ---
+
+
 @dataclass(frozen=True)
 class PriceSnapshot:
     symbol: str
     price: float
-    as_of: str  # ISO 8601 string
+    as_of: str
+
 
 @dataclass(frozen=True)
 class VixClose:
-    date: str     # YYYY-MM-DD
-    close: float  # daily close
+    date: str
+    close: float
+
 
 @dataclass(frozen=True)
 class CpiRelease:
-    date: str     # YYYY-MM-DD
-    time_et: str  # HH:MM ET
+    date: str
+    time_et: str
     url: Optional[str] = None
+
 
 @dataclass(frozen=True)
 class PaperItem:
@@ -26,3 +32,19 @@ class PaperItem:
     authors: List[str]
     year: Optional[int]
     url: str
+
+
+@dataclass(frozen=True)
+class DigestContext:
+    """A single object to hold all data for rendering the digest template."""
+
+    date: str
+    quotes: List[PriceSnapshot]
+    vix: VixClose
+    cpi: List[CpiRelease]
+    arxiv: List[PaperItem]
+    s2: List[PaperItem]
+    # Add other fields as you implement the new modules
+    # market_summary: str
+    # alpha_idea: Optional[AlphaIdea]
+    # ... and so on

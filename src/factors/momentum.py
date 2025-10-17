@@ -1,7 +1,8 @@
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
+from assistant.config import settings
+from assistant.utils.logging import logger
+from assistant.utils.async_http import AsyncHttpClient
 
 
 def calculate_12_1_momentum(
@@ -13,76 +14,106 @@ def calculate_12_1_momentum(
     skip: int = 1,
 ) -> pd.DataFrame:
     """
-    Calculate the Jegadeesh-Titman style (12-1) momentum signal for each stock.
+    Calculate the Jegadeesh-Titman (12-1) style cross-sectional momentum factor.
 
-    This function computes, for each date and PERMNO, the cumulative return over
-    `lookback` months ending `skip` months before the target date. Formally,
-    the momentum at time t is:
+    Momentum is calculated as:
+        prod_{j=skip+1}^{skip+lookback} (1 + ret_{t-j}) - 1
 
-        momentum_t = prod_{j=skip+1}^{skip+lookback} (1 + ret_{t-j}) - 1
-
-    Defaults implement the common 12-1 specification (lookback=12, skip=1).
+    This factor measures the tendency of stocks with high past returns (winners) to continue performing well,
+    and stocks with low past returns (losers) to continue underperforming. It is widely used in quantitative
+    finance for portfolio construction and alpha generation.
 
     Args:
-        crsp_df: long-format DataFrame containing at least columns for PERMNO,
-            date, and monthly returns. Expected rows like those returned by the
-            CRSP fetcher: {'permno', 'date', 'ret'}.
-        date_col: name of the date column (will be coerced to datetime).
-        permno_col: name of the integer identifier column for stocks.
-        ret_col: name of the monthly return column (decimal, e.g. 0.05 for 5%).
-        lookback: number of months in formation period (default 12).
-        skip: number of most-recent months to skip (default 1).
+        crsp_df (pd.DataFrame): Input DataFrame containing stock return data.
+        date_col (str): Column name for dates.
+        permno_col (str): Column name for stock identifiers (PERMNOs).
+        ret_col (str): Column name for returns.
+        lookback (int): Number of months in the lookback window.
+        skip (int): Number of months to skip before the lookback window.
 
     Returns:
-        DataFrame with columns ['date', 'permno', 'momentum'] where 'momentum'
-        contains the cumulative return over the formation window (float) and
-        is NaN when there isn't sufficient history.
+        pd.DataFrame: DataFrame with columns `date_col`, `permno_col`, and `momentum`.
 
-    Notes / assumptions:
-      - Missing returns in the formation window produce NaN momentum.
-      - The function treats the input `date_col` as the reference month for
-        which the momentum is produced (momentum at date t uses prior months
-        ending `skip` months before t).
+    Raises:
+        ValueError: If required columns are missing or if lookback/skip parameters are invalid.
+
+    Notes:
+        The 12-1 momentum factor is based on the seminal work by Jegadeesh and Titman (1993), which demonstrated
+        that stocks with high past returns tend to outperform stocks with low past returns over intermediate
+        horizons. This phenomenon is often attributed to behavioral biases and underreaction to information.
     """
-
-    # Basic validation
-    required = {date_col, permno_col, ret_col}
-    if not required.issubset(crsp_df.columns):
-        missing = required - set(crsp_df.columns)
-        raise ValueError(f"Input DataFrame is missing required columns: {missing}")
-
+    # Validate inputs
+    required_columns = {date_col, permno_col, ret_col}
+    if not required_columns.issubset(crsp_df.columns):
+        raise ValueError(f"Input DataFrame must contain the columns: {required_columns}")
     if lookback <= 0 or skip < 0:
-        raise ValueError("lookback must be > 0 and skip must be >= 0")
+        raise ValueError("`lookback` must be > 0 and `skip` must be >= 0.")
 
-    # Prepare dataframe
-    df = crsp_df[[permno_col, date_col, ret_col]].copy()
-    df = df.dropna(subset=[permno_col, date_col])
-    df[date_col] = pd.to_datetime(df[date_col])
-    # Ensure returns are numeric; keep NaN if conversion fails
+    # Data preparation
+    df = crsp_df[[date_col, permno_col, ret_col]].copy()
+    df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
     df[ret_col] = pd.to_numeric(df[ret_col], errors="coerce")
+    df = df.dropna(subset=[date_col, ret_col])
+    df = df.sort_values(by=[permno_col, date_col])
 
-    # Sort and compute per-permno rolling product on shifted returns
-    df = df.sort_values([permno_col, date_col])
+    # Momentum calculation
+    def _group_momentum(group):
+        group["log_ret"] = np.log1p(group[ret_col])
+        group["rolling_sum"] = (
+            group["log_ret"].shift(skip + 1).rolling(window=lookback, min_periods=lookback).sum()
+        )
+        group["momentum"] = np.expm1(group["rolling_sum"])
+        return group[[date_col, permno_col, "momentum"]]
 
-    def _group_momentum(group: pd.DataFrame) -> pd.DataFrame:
-        # (1 + r)
-        one_plus = 1.0 + group[ret_col]
-        # Shift forward so that the formation window ends `skip` months before
-        # the target date. To get months t-(skip+1) ... t-(skip+lookback), we
-        # shift by (skip + 1) and then take a rolling window of size lookback.
-        shifted = one_plus.shift(skip + 1)
-        # rolling product; require full window
-        rolled = shifted.rolling(window=lookback, min_periods=lookback)
-        prod = rolled.apply(lambda x: np.prod(x), raw=True)
-        momentum = prod - 1.0
-        result = group[[date_col]].copy()
-        result["momentum"] = momentum.values
-        return result
+    result = df.groupby(permno_col, group_keys=False).apply(_group_momentum)
+    result[permno_col] = result[permno_col].astype(int)
 
-    out = df.groupby(permno_col, group_keys=False).apply(_group_momentum)
-    out = out.reset_index()
-    # keep only relevant columns and ensure types
-    out = out[[date_col, permno_col, "momentum"]]
-    out[permno_col] = out[permno_col].astype(int)
+    return result
 
-    return out
+
+async def generate_market_summary():
+    """
+    Generate a daily market summary using the Llama Cloud API.
+
+    This function sends a request to the Llama Cloud API with a system prompt and user input,
+    and returns the model's response. If the API call fails, it logs the error and returns
+    a fallback string.
+
+    Returns:
+        str: The market summary generated by the Llama model, or a fallback string on failure.
+    """
+    # System prompt for the Llama model
+    system_prompt = (
+        "You are a senior quantitative analyst at a top-tier hedge fund, providing a daily market "
+        "briefing. Your tone is concise, data-driven, and insightful."
+    )
+
+    # Construct the JSON payload
+    payload = {
+        "model": settings.analyzer_settings.llm_model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": "Please provide today's market summary."},
+        ],
+    }
+
+    # Authorization header
+    headers = {"Authorization": f"Bearer {settings.LLAMA_CLOUD_API_KEY}"}
+
+    try:
+        # Initialize the HTTP client
+        async with AsyncHttpClient() as http:
+            # Make the API call
+            response = await http.post(
+                url=settings.LLAMA_CLOUD_API_ENDPOINT, json=payload, headers=headers
+            )
+            response_data = await response.json()
+
+            # Extract the content from the model's message
+            market_summary = response_data["choices"][0]["message"]["content"]
+            return market_summary
+
+    except Exception as e:
+        # Log the error and return a fallback string
+        logger.error(f"Failed to generate market summary: {e}")
+        return "Unable to generate market summary at this time. Please try again later."

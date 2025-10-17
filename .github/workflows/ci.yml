@@ -4,28 +4,31 @@ on:
   push:
     branches: [main]
   pull_request:
-  workflow_dispatch:  # allows a manual "Run workflow" button
+  workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install uv (official script)
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v1
 
-      - name: Sync environment from lock (deterministic)
-        run: |
-          uv sync --frozen
+      - name: Cache uv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
 
-      - name: Lint
-        run: |
-          uv run ruff check .
+      - name: Sync environment
+        run: uv sync --frozen
 
-      - name: Tests
-        run: |
-          uv run pytest
+      - name: Run linter
+        run: uv run ruff check .
+
+      - name: Run tests
+        run: uv run pytest

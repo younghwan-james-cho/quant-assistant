@@ -1,0 +1,51 @@
+# Daily Quant Digest — {{ ctx.date }}
+
+---
+
+### Market Data Snapshot
+
+| Ticker | Price  | Change | % Change |
+|:-------|:-------|:-------|:---------|
+{% if ctx.quotes %}
+{% for q in ctx.quotes -%}
+| **{{ q.symbol }}** | {{ "%.2f"|format(q.price) }} | `{{ "%+.2f"|format(q.change) }}` | `({{ "%+.2f"|format(q.percent_change) }}%)` |
+{% endfor %}
+{% else %}
+| *No data available.* |  <!-- Data might be unavailable due to API issues or rate limits -->
+{% endif %}
+
+- **VIX Close**: **{{ "%.2f"|format(ctx.vix.close) }}** (as of {{ ctx.vix.date }})
+
+---
+
+### Upcoming CPI Releases (BLS)
+
+{% if ctx.cpi and ctx.cpi[0].date != "N/A" %}
+{% for r in ctx.cpi[:3] -%}
+- {{ r.date }} ({{ r.time_et }} ET)
+{% endfor %}
+{% else %}
+*No upcoming CPI releases found.*
+{% endif %}
+
+---
+
+### Academic Research Papers
+
+### arXiv Papers
+{% if ctx.arxiv %}
+{% for p in ctx.arxiv[:6] -%}
+- {{ p.title }} ({{ p.year }}) — [Read more]({{ p.url }})
+{% endfor %}
+{% else %}
+*No new papers found on arXiv today.*
+{% endif %}
+
+### Semantic Scholar Papers
+{% if ctx.s2 %}
+{% for p in ctx.s2[:6] -%}
+- {{ p.title }} ({{ p.year }}) — [Read more]({{ p.url }})
+{% endfor %}
+{% else %}
+*No new papers found on Semantic Scholar today.*
+{% endif %}

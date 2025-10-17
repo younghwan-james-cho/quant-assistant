@@ -1,46 +1,39 @@
-# src/assistant/utils/http.py
+"""Lightweight synchronous HTTP utilities used by fetchers and tests."""
+
 from __future__ import annotations
-import time
-from typing import Optional, Dict, Any
+
+from typing import Any, Mapping
+
 import requests
 
-DEFAULT_TIMEOUT = (5, 20)  # (connect, read) seconds
-DEFAULT_MAX_RETRIES = 3
-DEFAULT_BACKOFF_SECONDS = 1.5
-DEFAULT_UA = "quant-assistant/0.1 (+https://example.com)"
+DEFAULT_TIMEOUT: tuple[float, float] = (3.05, 27)
+DEFAULT_MAX_RETRIES: int = 3
+DEFAULT_UA: str = "quant-assistant-http/1.0"
+
 
 class HttpClient:
-    """Simple HTTP client with timeouts, retries, backoff, and a default User-Agent."""
+    """Simple wrapper around ``requests`` for deterministic tests."""
 
     def __init__(
         self,
-        timeout: tuple[int, int] = DEFAULT_TIMEOUT,
-        max_retries: int = DEFAULT_MAX_RETRIES,
-        backoff_seconds: float = DEFAULT_BACKOFF_SECONDS,
-        headers: Optional[Dict[str, str]] = None,
+        *,
+        timeout: tuple[float, float] = DEFAULT_TIMEOUT,
+        user_agent: str = DEFAULT_UA,
+        session: requests.Session | None = None,
     ) -> None:
         self.timeout = timeout
-        self.max_retries = max_retries
-        self.backoff_seconds = backoff_seconds
-        self.session = requests.Session()
-        base_headers = {"User-Agent": DEFAULT_UA}
-        if headers:
-            base_headers.update(headers)
-        self.session.headers.update(base_headers)
+        self.session = session or requests.Session()
+        self.session.headers.setdefault("User-Agent", user_agent)
 
-    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> requests.Response:
-        last_exc: Optional[Exception] = None
-        for attempt in range(1, self.max_retries + 1):
-            try:
-                r = self.session.get(url, params=params, timeout=self.timeout)
-                r.raise_for_status()
-                return r
-            except Exception as exc:
-                last_exc = exc
-                if attempt < self.max_retries:
-                    time.sleep(self.backoff_seconds * attempt)
-                else:
-                    raise
-        # Defensive: should never get here
-        assert last_exc is not None
-        raise last_exc
+    def get(
+        self,
+        url: str,
+        params: Mapping[str, Any] | None = None,
+        headers: Mapping[str, Any] | None = None,
+    ) -> requests.Response:
+        response = self.session.get(url, params=params, headers=headers, timeout=self.timeout)
+        response.raise_for_status()
+        return response
+
+    def close(self) -> None:
+        self.session.close()

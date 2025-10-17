@@ -4,6 +4,9 @@ import smtplib
 import ssl
 import time
 from email.mime.text import MIMEText
+from logging import getLogger
+
+logger = getLogger(__name__)
 
 
 def _bool(s: str | None, default: bool = False) -> bool:
@@ -13,9 +16,11 @@ def _bool(s: str | None, default: bool = False) -> bool:
 
 
 def send_email(to: str, subject: str, html_or_md: str, from_addr: str | None = None) -> None:
+    logger.debug("Preparing to send email")
     user = os.getenv("SMTP_USER")
     pwd = os.getenv("SMTP_PASS")
     if not user or not pwd:
+        logger.error("SMTP_USER/SMTP_PASS not configured")
         raise RuntimeError("SMTP_USER/SMTP_PASS not configured")
 
     host = os.getenv("SMTP_HOST", "smtp.gmail.com")
@@ -24,6 +29,10 @@ def send_email(to: str, subject: str, html_or_md: str, from_addr: str | None = N
     use_starttls = _bool(os.getenv("SMTP_STARTTLS", "true"), default=True)
     timeout = float(os.getenv("SMTP_TIMEOUT", "15"))  # seconds
     debug = int(os.getenv("SMTP_DEBUG", "0"))
+
+    logger.debug(
+        f"SMTP configuration: host={host}, port={port}, use_ssl={use_ssl}, use_starttls={use_starttls}, timeout={timeout}"
+    )
 
     from_addr = from_addr or user
 
@@ -35,9 +44,14 @@ def send_email(to: str, subject: str, html_or_md: str, from_addr: str | None = N
     attempts = int(os.getenv("SMTP_RETRIES", "3"))
     backoff = float(os.getenv("SMTP_BACKOFF", "1.5"))
 
+    logger.debug(
+        f"Email details: to={to}, subject={subject}, from={from_addr}, attempts={attempts}, backoff={backoff}"
+    )
+
     last_exc: Exception | None = None
     for attempt in range(1, attempts + 1):
         try:
+            logger.debug(f"Attempt {attempt} to send email")
             if use_ssl:
                 context = ssl.create_default_context()
                 with smtplib.SMTP_SSL(host, port, timeout=timeout, context=context) as s:
@@ -45,6 +59,7 @@ def send_email(to: str, subject: str, html_or_md: str, from_addr: str | None = N
                         s.set_debuglevel(1)
                     s.login(user, pwd)
                     s.sendmail(from_addr, [to], msg.as_string())
+                    logger.info("Email sent successfully")
                     return
             else:
                 with smtplib.SMTP(host, port, timeout=timeout) as s:
@@ -54,10 +69,14 @@ def send_email(to: str, subject: str, html_or_md: str, from_addr: str | None = N
                         s.starttls(context=ssl.create_default_context())
                     s.login(user, pwd)
                     s.sendmail(from_addr, [to], msg.as_string())
+                    logger.info("Email sent successfully")
                     return
         except Exception as e:
+            logger.error(f"Error on attempt {attempt}: {e}")
             last_exc = e
             if attempt < attempts:
-                time.sleep(backoff * attempt)
-            else:
-                raise
+                logger.debug(f"Retrying after {backoff} seconds")
+                time.sleep(backoff)
+    logger.error("All attempts to send email failed")
+    if last_exc:
+        raise last_exc
